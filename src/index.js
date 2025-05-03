@@ -17,6 +17,7 @@ let printerConnected = false;
 // Find and connect to printer
 function connectToPrinter() {
     try {
+        console.log('Attempting to connect to printer...');
         const device = new USB();
         printer = new escpos.Printer(device);
 
@@ -30,7 +31,7 @@ function connectToPrinter() {
             console.log('Printer connected successfully');
         });
     } catch (error) {
-        // console.error('Failed to connect to printer:', error);
+        console.error('Failed to connect to printer:', error);
         printerConnected = false;
     }
 }
@@ -55,6 +56,7 @@ app.post('/print-receipt', async (req, res) => {
                 printerConnected = false;
                 return res.status(500).json({
                     error: 'Printer not connected. Please check printer connection and try again.',
+                    details: error.message,
                 });
             }
 
@@ -67,7 +69,7 @@ app.post('/print-receipt', async (req, res) => {
                 .size(0, 0)
                 .text('K M TEX SULTHAN BATHERY')
                 .size(0.5, 0.5)
-                .text('Ph: 9656728836 , 9843256637') // ✅ Added phone number
+                .text('Ph: 9656728836 , 9843256637')
                 .text('Bill Receipt')
                 .style('NORMAL')
                 .align('CT')
@@ -105,11 +107,11 @@ app.post('/print-receipt', async (req, res) => {
             currentPrinter
                 .text('------------------------------------------------')
                 .style('B')
-                .size(1, 1) // ✅ Bigger and bolder total
+                .size(1, 1)
                 .align('LT')
                 .text(`${totalLabel}${spacingTotal}${totalValue}`)
                 .style('NORMAL')
-                .size(0.5, 0.5) // Reset size
+                .size(0.5, 0.5)
                 .text(`Payment Status: ${bill.payment_status}`)
                 .text(
                     bill.payment_method
@@ -124,40 +126,46 @@ app.post('/print-receipt', async (req, res) => {
                 .close((err) => {
                     if (err) {
                         console.error('Printing failed:', err);
-                        return res
-                            .status(500)
-                            .json({ error: 'Printing failed' });
+                        return res.status(500).json({
+                            error: 'Printing failed',
+                            details: err.message,
+                        });
                     }
                     console.log('Receipt printed successfully');
                     res.json({ message: 'Receipt printed successfully' });
                 });
         });
     } catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Print receipt error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: error.message,
+        });
     }
 });
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
     try {
+        console.log('Checking printer health...');
         if (!printerConnected) {
             connectToPrinter();
-            // Wait for a short time to allow connection
             await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
-        // Test printer connection by creating a new instance
         const device = new USB();
         const testPrinter = new escpos.Printer(device);
 
         device.open((error) => {
             if (error) {
+                console.error('Printer health check failed:', error);
                 printerConnected = false;
                 res.json({
-                    status: 'warning',
+                    status: 'error',
                     printerConnected: false,
                     message:
                         'Printer is not connected. Please check the connection.',
+                    details: error.message,
                 });
                 return;
             }
@@ -171,11 +179,13 @@ app.get('/health', async (req, res) => {
             });
         });
     } catch (error) {
+        console.error('Printer health check error:', error);
         printerConnected = false;
         res.json({
             status: 'error',
             printerConnected: false,
             message: 'Error checking printer status',
+            details: error.message,
         });
     }
 });
